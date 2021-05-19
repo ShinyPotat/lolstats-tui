@@ -2,23 +2,14 @@
 import os
 import requests
 import xlsxwriter
+from colorama import Fore, init
 from datetime import datetime
 from riotwatcher import LolWatcher, ApiError
 from tabulate import tabulate
 import roleml
 from xlsxwriter.worksheet import Worksheet
 
-class bcolors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-
+init(autoreset=True)
 
 api_key = os.environ['RIOT_API_KEY']
 lol_watcher = LolWatcher(api_key)
@@ -35,8 +26,10 @@ else:
     create_excel = False
 
 try:
-    latest = lol_watcher.data_dragon.versions_for_region(my_region)['n']['champion']
-    static_champ_list = lol_watcher.data_dragon.champions(latest, False, 'en_US')
+    latest = lol_watcher.data_dragon.versions_for_region(my_region)[
+        'n']['champion']
+    static_champ_list = lol_watcher.data_dragon.champions(
+        latest, False, 'en_US')
     champ_dict = {}
     for key in static_champ_list['data']:
         row = static_champ_list['data'][key]
@@ -47,16 +40,18 @@ try:
 
     summ = lol_watcher.summoner.by_name(my_region, name)
     ranked_stats = lol_watcher.league.by_summoner(my_region, summ['id'])
-    print(bcolors.BOLD + "---- {} ----".format(name) + bcolors.ENDC)
+    print(Fore.LIGHTBLUE_EX + "---- {} ----".format(name))
     for ranked in ranked_stats:
         if ranked['queueType'] == "RANKED_FLEX_SR":
             print("Solo/Duo: {} {}".format(ranked['tier'], ranked['rank']))
         elif ranked['queueType'] == "RANKED_SOLO_5x5":
             print("Flex: {} {}".format(ranked['tier'], ranked['rank']))
     print()
-    matches = lol_watcher.match.matchlist_by_account(my_region, summ['accountId'], end_index=10)
+    matches = lol_watcher.match.matchlist_by_account(
+        my_region, summ['accountId'], end_index=10)
     wins = 0
-    table = [['Result', 'Game Mode' , 'Role', 'Champion', 'Enemy','Duration', 'KDA', 'CS', 'Gold Earned', 'Total Damage', 'Date']]
+    table = [['Result', 'Game Mode', 'Role', 'Champion', 'Enemy',
+              'Duration', 'KDA', 'CS', 'Gold Earned', 'Total Damage', 'Date']]
     for match in matches['matches']:
         match_detail = lol_watcher.match.by_id(my_region, match['gameId'])
         participant_id = 0
@@ -77,7 +72,8 @@ try:
 
         total_kills = 0
         enemy = ""
-        timeline = lol_watcher.match.timeline_by_match(match_id=match['gameId'], region=my_region)
+        timeline = lol_watcher.match.timeline_by_match(
+            match_id=match['gameId'], region=my_region)
         predict = roleml.predict(match_detail, timeline)
         role = predict[participant_id]
         for player in match_detail['participants']:
@@ -87,10 +83,10 @@ try:
                 enemy = champ_dict[str(player['championId'])]
 
         if participant_stats['win']:
-            end = bcolors.OKGREEN + "win" + bcolors.ENDC
+            end = Fore.GREEN + "win" + Fore.RESET
             wins += 1
         else:
-            end = bcolors.FAIL + "defeat" + bcolors.ENDC
+            end = Fore.RED + "defeat" + Fore.RESET
 
         if 'Flex' in game_mode:
             game_mode = "Flex"
@@ -111,12 +107,15 @@ try:
         kills = participant_stats['kills']
         deaths = participant_stats['deaths']
         assists = participant_stats['assists']
-        minions = participant_stats['totalMinionsKilled'] + participant_stats['neutralMinionsKilled']
+        minions = participant_stats['totalMinionsKilled'] + \
+            participant_stats['neutralMinionsKilled']
         gold = participant_stats['goldEarned']
         damage = participant_stats['totalDamageDealtToChampions']
-        date = datetime.fromtimestamp(match['timestamp']/1000).strftime("%d/%m/%Y")
+        date = datetime.fromtimestamp(
+            match['timestamp']/1000).strftime("%d/%m/%Y")
 
-        l = [end, game_mode, role, champion, enemy,"{:02}:{:02}".format(int(minutes), int(seconds)), "{}/{}/{} ({}%)".format(kills, deaths, assists, int((kills+assists)/total_kills*100)), "{} ({:.1f})".format(minions, minions/minutes), gold, damage,date]
+        l = [end, game_mode, role, champion, enemy, "{:02}:{:02}".format(int(minutes), int(seconds)), "{}/{}/{} ({}%)".format(
+            kills, deaths, assists, int((kills+assists)/total_kills*100)), "{} ({:.1f})".format(minions, minions/minutes), gold, damage, date]
         table.append(l)
 
     print(tabulate(table, headers='firstrow', tablefmt='fancy_grid'))
@@ -143,7 +142,7 @@ try:
                         data[0] = 'win'
                         cell_format.set_bg_color('green')
                     worksheet.write(row_num, 0, data[0], cell_format)
-                    for i in range(1,7):
+                    for i in range(1, 7):
                         worksheet.write(row_num, i, data[i])
 
                     cs_per_minute = float(data[7].split(" ")[1][1:-1])
@@ -161,7 +160,7 @@ try:
 
                     worksheet.write(row_num, 7, data[7], cell_format)
 
-                    for i in range(8,11):
+                    for i in range(8, 11):
                         worksheet.write(row_num, i, data[i])
             worksheet.set_row(0, 20, workbook.add_format({'bold': True}))
 
