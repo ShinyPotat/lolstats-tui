@@ -5,6 +5,8 @@ import xlsxwriter
 from datetime import datetime
 from riotwatcher import LolWatcher, ApiError
 from tabulate import tabulate
+import roleml
+from xlsxwriter.worksheet import Worksheet
 
 class bcolors:
     HEADER = '\033[95m'
@@ -54,7 +56,7 @@ try:
     print()
     matches = lol_watcher.match.matchlist_by_account(my_region, summ['accountId'], end_index=10)
     wins = 0
-    table = [['Result', 'Game Mode' , 'Role', 'Champion', 'Duration', 'KDA', 'CS', 'Gold Earned', 'Total Damage', 'Date']]
+    table = [['Result', 'Game Mode' , 'Role', 'Champion', 'Enemy','Duration', 'KDA', 'CS', 'Gold Earned', 'Total Damage', 'Date']]
     for match in matches['matches']:
         match_detail = lol_watcher.match.by_id(my_region, match['gameId'])
         participant_id = 0
@@ -74,23 +76,21 @@ try:
         participant_stats = participant['stats']
 
         total_kills = 0
+        enemy = ""
+        timeline = lol_watcher.match.timeline_by_match(match_id=match['gameId'], region=my_region)
+        predict = roleml.predict(match_detail, timeline)
+        role = predict[participant_id]
         for player in match_detail['participants']:
             if player['teamId'] == participant['teamId']:
                 total_kills += player['stats']['kills']
+            if player['teamId'] != participant['teamId'] and predict[player['participantId']] == role:
+                enemy = champ_dict[str(player['championId'])]
 
         if participant_stats['win']:
             end = bcolors.OKGREEN + "win" + bcolors.ENDC
             wins += 1
         else:
             end = bcolors.FAIL + "defeat" + bcolors.ENDC
-        role = ""
-
-        if 'CARRY' in match['role']:
-            role = 'ADC'
-        elif 'SUPPORT' in match['role']:
-            role = 'SUPPORT'
-        else:
-            role = match['lane']
 
         if 'Flex' in game_mode:
             game_mode = "Flex"
@@ -116,7 +116,7 @@ try:
         damage = participant_stats['totalDamageDealtToChampions']
         date = datetime.fromtimestamp(match['timestamp']/1000).strftime("%d/%m/%Y")
 
-        l = [end, game_mode, role, champion, "{:02}:{:02}".format(int(minutes), int(seconds)), "{}/{}/{} ({}%)".format(kills, deaths, assists, int((kills+assists)/total_kills*100)), "{} ({:.1f})".format(minions, minions/minutes), gold, damage,date]
+        l = [end, game_mode, role, champion, enemy,"{:02}:{:02}".format(int(minutes), int(seconds)), "{}/{}/{} ({}%)".format(kills, deaths, assists, int((kills+assists)/total_kills*100)), "{} ({:.1f})".format(minions, minions/minutes), gold, damage,date]
         table.append(l)
 
     print(tabulate(table, headers='firstrow', tablefmt='fancy_grid'))
@@ -143,7 +143,25 @@ try:
                         data[0] = 'win'
                         cell_format.set_bg_color('green')
                     worksheet.write(row_num, 0, data[0], cell_format)
-                    for i in range (1,10):
+                    for i in range(1,7):
+                        worksheet.write(row_num, i, data[i])
+
+                    cs_per_minute = float(data[7].split(" ")[1][1:-1])
+
+                    cell_format = workbook.add_format()
+
+                    if cs_per_minute <= 3.0:
+                        cell_format.set_bg_color('red')
+                    elif cs_per_minute > 3.0 and cs_per_minute <= 5.0:
+                        cell_format.set_bg_color('orange')
+                    elif cs_per_minute > 5.0 and cs_per_minute < 8.0:
+                        cell_format.set_bg_color('yellow')
+                    else:
+                        cell_format.set_bg_color('green')
+
+                    worksheet.write(row_num, 7, data[7], cell_format)
+
+                    for i in range(8,11):
                         worksheet.write(row_num, i, data[i])
             worksheet.set_row(0, 20, workbook.add_format({'bold': True}))
 
