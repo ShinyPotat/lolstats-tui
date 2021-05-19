@@ -23,6 +23,14 @@ lol_watcher = LolWatcher(api_key)
 my_region = 'euw1'
 
 name = input('Summoner name: ')
+create_excel = input('Create excel?(Y/n) ')
+
+if create_excel.lower() == 'y':
+    create_excel = True
+elif create_excel.lower() == 'n':
+    create_excel = False
+else:
+    create_excel = False
 
 try:
     latest = lol_watcher.data_dragon.versions_for_region(my_region)['n']['champion']
@@ -114,15 +122,30 @@ try:
     print(tabulate(table, headers='firstrow', tablefmt='fancy_grid'))
     print("\nWR: {}% {}W {}L".format(int(wins/10*100), wins, 10-wins))
 
-    with xlsxwriter.Workbook('test.xlsx') as workbook:
-        worksheet = workbook.add_worksheet()
+    if create_excel:
 
-        for row_num, data in enumerate(table):
-            if 'defeat' in data[0]:
-                data[0] = 'defeat'
-            elif 'win' in data[0]:
-                data[0] = 'win'
-            worksheet.write_row(row_num, 0, data)
+        if not os.path.isdir('storage'):
+            os.mkdir('storage')
+        file = 'storage/' + name + "-" + datetime.now().strftime("%Y-%m-%d-%H-%M") + ".xlsx"
+        with xlsxwriter.Workbook(file) as workbook:
+            worksheet = workbook.add_worksheet()
+
+            for row_num, data in enumerate(table):
+
+                if row_num == 0:
+                    worksheet.write_row(row_num, 0, data)
+                else:
+                    cell_format = workbook.add_format()
+                    if 'defeat' in data[0]:
+                        data[0] = 'defeat'
+                        cell_format.set_bg_color('red')
+                    else:
+                        data[0] = 'win'
+                        cell_format.set_bg_color('green')
+                    worksheet.write(row_num, 0, data[0], cell_format)
+                    for i in range (1,10):
+                        worksheet.write(row_num, i, data[i])
+            worksheet.set_row(0, 20, workbook.add_format({'bold': True}))
 
 except ApiError as err:
     if err.response.status_code == 429:
