@@ -1,5 +1,63 @@
 #!/usr/bin/env python3
-import sys
+import os
+from riotwatcher import LolWatcher, ApiError
 
-for arg in sys.argv:
-    print(arg)
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
+
+api_key = os.environ['RIOT_API_KEY']
+lol_watcher = LolWatcher(api_key)
+my_region = 'euw1'
+
+name = input('Summoner name: ')
+
+try:
+    summ = lol_watcher.summoner.by_name(my_region, name)
+    ranked_stats = lol_watcher.league.by_summoner(my_region, summ['id'])
+    print(bcolors.BOLD + "---- {} ----".format(name) + bcolors.ENDC)
+    for ranked in ranked_stats:
+        if ranked['queueType'] == "RANKED_FLEX_SR":
+            print("Solo/Duo: {} {}".format(ranked['tier'], ranked['rank']))
+        elif ranked['queueType'] == "RANKED_SOLO_5x5":
+            print("Flex: {} {}\n".format(ranked['tier'], ranked['rank']))
+
+    matches = lol_watcher.match.matchlist_by_account(my_region, summ['accountId'], end_index=10)
+    for match in matches['matches']:
+        match_detail = lol_watcher.match.by_id(my_region, match['gameId'])
+        participant_id = 0
+        for identity in match_detail['participantIdentities']:
+            if identity['player']['accountId'] == summ['accountId']:
+                participant_id = identity['participantId']
+                break
+        participant = match_detail['participants'][participant_id-1]
+        participant_stats = participant['stats']
+
+        if participant_stats['win']:
+            end = bcolors.OKGREEN + "win" + bcolors.ENDC
+        else:
+            end = bcolors.FAIL + "defeat" + bcolors.ENDC
+
+        kills = participant_stats['kills']
+        deaths = participant_stats['deaths']
+        assists = participant_stats['assists']
+        minions = bcolors.WARNING + str(participant_stats['totalMinionsKilled'] + participant_stats['neutralMinionsKilled']) + bcolors.ENDC
+
+        print("  {} {}/{}/{} {}cs".format(end, kills, deaths, assists, minions))
+except ApiError as err:
+    if err.response.status_code == 429:
+        print('We should retry in {} seconds.'.format(err.response))
+        print('this retry-after is handled by default by the RiotWatcher library')
+        print('future requests wait until the retry-after time passes')
+    elif err.response.status_code == 404:
+        print('Summoner with that ridiculous name not found.')
+    else:
+        raise
