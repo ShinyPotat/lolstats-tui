@@ -95,9 +95,11 @@ try:
         elif 'ARAM' in game_mode:
             game_mode = 'ARAM'
             role = ""
+            enemy=""
         elif 'URF' in game_mode:
             game_mode = "URF"
             role = ""
+            enemy=""
         elif "Draft" in game_mode:
             game_mode = "Draft"
 
@@ -149,14 +151,16 @@ try:
 
                     cell_format = workbook.add_format()
 
-                    if cs_per_minute <= 3.0:
-                        cell_format.set_bg_color('red')
-                    elif cs_per_minute > 3.0 and cs_per_minute <= 5.0:
-                        cell_format.set_bg_color('orange')
-                    elif cs_per_minute > 5.0 and cs_per_minute < 8.0:
-                        cell_format.set_bg_color('yellow')
-                    else:
-                        cell_format.set_bg_color('green')
+                    if data[1] != 'ARAM' or data[2] != 'supp':
+
+                        if cs_per_minute <= 3.0:
+                            cell_format.set_bg_color('red')
+                        elif cs_per_minute > 3.0 and cs_per_minute <= 5.0:
+                            cell_format.set_bg_color('orange')
+                        elif cs_per_minute > 5.0 and cs_per_minute < 8.0:
+                            cell_format.set_bg_color('yellow')
+                        else:
+                            cell_format.set_bg_color('green')
 
                     worksheet.write(row_num, 7, data[7], cell_format)
 
